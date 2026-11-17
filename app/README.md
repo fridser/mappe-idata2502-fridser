@@ -9,9 +9,18 @@ work is the infrastructure you put around it, not the app itself.
 
 | Route           | What it does                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------- |
-| `/`             | Welcome page with a visit counter and the build stamp. Without Redis it says so - the app still runs.      |
+| `/`             | Welcome page to a shop with a visit counter, the build stamp and links to the love,
+happiness and success pages. Without Redis it says so - the app still runs.                        |
+| `/love` | Shows a product page for the product love, a button to buy love, a counter that counts how many love has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                                               |
+| `/love/buy` | POST method, increments the 'love' counter in redis that keeps track of how much love has been bought                                                                                         | 
+| `/happiness` | Shows a product page for the product happiness, a button to buy happiness, a counter that counts how many happiness has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                         |
+| `/happiness/buy` | POST method, increments the 'happiness' counter in redis that keeps track of how much happiness has been bought                                                                          | 
+| `/success` | Shows a product page for the product success, a button to buy success, a counter that counts how many success has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                                 |
+| `/success/buy` | POST method, increments the 'success' counter in redis that keeps track of how much success has been bought                                                                          | 
 | `/health`       | Returns `{"status": "ok", "build": "..."}` - a machine-readable endpoint for health checks.                |
 | `/hello/<name>` | Says hello.                                                                                                |
+| `/hello/<name>` | Says hello.                                                                                                |
+
 
 ## Run it
 

@@ -10,7 +10,7 @@ import pathlib
 import uuid
 
 import redis
-from flask import Flask, g, jsonify, request
+from flask import Flask, g, jsonify, request, redirect, url_for
 
 # Configuration comes from environment variables (twelve-factor style).
 # Defaults let the app run standalone on your laptop without Redis.
@@ -105,10 +105,91 @@ def index():
     else:
         visits = f"You are visitor number {client.incr('visits')}."
     return (
-        "<h1>Welcome to my (frida) starter app!</h1>"
+        "<h1>Welcome to the life shop!</h1>"
         f"<p>{visits}</p>"
         f"<p><small>Build: {BUILD}</small></p>"
+        f"<p></p>"
+        "<ul>"
+            f"<li><button type='button' onclick=\"location.href='/love'\">Love</button></li>"
+            "<li><button type='button' onclick=\"location.href='/success'\">Success</button></li>"
+            "<li><button type='button' onclick=\"location.href='/happiness'\">Happiness</button></li>"
+        "</ul>"  
     )
+
+@app.route("/love")
+def love():
+    client = get_redis()
+    if client is None:
+        message = "Redis not connected - buy counter unavailable."
+    else:
+        message = f"You have bought {int(client.get('love') or 0)} love."
+    return (
+        "<h1>Love</h1>"
+        "<p>5c</p>"  
+        "<form method='post' action='/love/buy'>"
+            "<button type='submit'>Buy</button>"
+        "</form>"
+        f"<p>{message}</p>"
+        "<p>Who knew that love was so cheap?</p>"
+        "<button type='button' onclick=\"location.href='/'\">Back</button>"
+    )
+
+@app.route("/love/buy", methods=["POST"])
+def love_buy():
+    client = get_redis()
+    if client is not None:
+        client.incr("love")
+    return redirect(url_for("love"))
+
+@app.route("/success")
+def success():
+    client = get_redis()
+    if client is None:
+        message = "Redis not connected - buy counter unavailable."
+    else:
+        message = f"You have bought {int(client.get('success') or 0)} success."
+    return (
+        "<h1>Success</h1>"
+        "<p>1 000 000 $</p>"  
+        "<form method='post' action='/success/buy'>"
+            "<button type='submit'>Buy</button>"
+        "</form>"
+        f"<p>{message}</p>"
+        "<p>It's expensive...</p>"
+        "<button type='button' onclick=\"location.href='/'\">Back</button>"
+    )
+
+@app.route("/success/buy", methods=["POST"])
+def success_buy():
+    client = get_redis()
+    if client is not None:
+        client.incr("success")
+    return redirect(url_for("success"))
+
+@app.route("/happiness")
+def happiness():
+    client = get_redis()
+    if client is None:
+        message = "Redis not connected - buy counter unavailable."
+    else:
+        message = f"You have bought {int(client.get('happiness') or 0)} happiness."
+    return (
+        "<h1>Happiness</h1>"
+        "<p>50 $</p>"  
+        "<form method='post' action='/happiness/buy'>"
+            "<button type='submit'>Buy</button>"
+        "</form>"
+        f"<p>{message}</p>"
+        "<p>You really can buy happiness!</p>"
+        "<button type='button' onclick=\"location.href='/'\">Back</button>"
+    )
+
+@app.route("/happiness/buy", methods=["POST"])
+def happiness_buy():
+    client = get_redis()
+    if client is not None:
+        client.incr("happiness")
+    return redirect(url_for("happiness"))
 
 
 @app.route("/health")
