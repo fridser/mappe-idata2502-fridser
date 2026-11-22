@@ -18,8 +18,7 @@ happiness and success pages. Without Redis it says so - the app still runs.     
 | `/success` | Shows a product page for the product success, a button to buy success, a counter that counts how many success has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                                 |
 | `/success/buy` | POST method, increments the 'success' counter in redis that keeps track of how much success has been bought                                                                          | 
 | `/health`       | Returns `{"status": "ok", "build": "..."}` - a machine-readable endpoint for health checks.                |
-| `/hello/<name>` | Says hello.                                                                                                |
-| `/hello/<name>` | Says hello.                                                                                                |
+
 
 
 ## Run it
