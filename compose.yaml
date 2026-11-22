@@ -1,0 +1,14 @@
+services:
+  app:
+    build: ./app 
+    ports:
+      - "5000:5000"
+    environment:
+      - REDIS_HOST=redis
+  redis:
+    image: redis:7 
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data: 
