@@ -2,7 +2,7 @@
 
 This is the starting point for **Frida's project repository**.
 
-This contains the final project in idata2502 Administration of Cloud Services. It publishes a small webapp througha delivery loop to a server.
+This contains the final project in idata2502 Administration of Cloud Services. It publishes a small webapp through a delivery loop to a server.
 
 ## Structure
 
