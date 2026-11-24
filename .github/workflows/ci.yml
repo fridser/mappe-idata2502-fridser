@@ -1,0 +1,71 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Unit tests
+        run: |
+          pip install -r app/requirements.txt pytest
+          pytest app
+      
+      - name: Build image
+        run: docker build -t starter-app ./app 
+
+      - name: Smoke test
+        run: |
+          docker run -d -p 5000:5000 --name app starter-app
+          timeout 30 bash -c 'until curl -sf localhost:5000/health; do sleep 1; done'
+      
+      - name: Container logs
+        if: failure()
+        run: docker logs app
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: starter-app
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,} # ,, = lower case
+          docker build -t "$IMAGE:latest" -t "$IMAGE:${GITHUB_SHA::7}" ./app
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA::7}"
+
+  dependency-review:
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          base-ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          head-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+
