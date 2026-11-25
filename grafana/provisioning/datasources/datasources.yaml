@@ -1,0 +1,50 @@
+# Grafana's data sources, provisioned at start-up - and the links BETWEEN
+# them, which is what makes the three pillars one tool:
+#   a log line carries a trace_id  ->  button "Open trace" (Loki -> Tempo)
+#   a span belongs to a service    ->  "Logs for this span" (Tempo -> Loki)
+#   traces describe who calls whom ->  the service map     (Tempo -> Prometheus)
+# Every URL is a Compose service name: from inside the Grafana container,
+# "localhost" is Grafana itself.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        # Find "trace_id":"<hex>" in a log line and link it to Tempo.
+        # ($$ is how a literal $ is written in a provisioning file.)
+        - name: trace_id
+          matcherType: regex
+          matcherRegex: '"trace_id": ?"(\w+)"'
+          datasourceUid: tempo
+          url: "$${__value.raw}"
+          urlDisplayLabel: Open trace
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: http://tempo:3200
+    jsonData:
+      tracesToLogsV2:
+        # From a span to its log lines: the span's service.name becomes the
+        # Loki label `service`, and the trace ID is searched for in the text.
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service
+      serviceMap:
+        datasourceUid: prometheus # the service-graph metrics Tempo writes there
+      nodeGraph:
+        enabled: true

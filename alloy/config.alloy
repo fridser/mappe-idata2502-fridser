@@ -1,0 +1,38 @@
+// Alloy pipeline: find containers -> label them -> read their logs -> Loki.
+// Read it top to bottom; every block's output feeds the next one.
+
+// 1. Ask the Docker daemon which containers exist.
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// 2. Turn Docker metadata into Loki labels you can query on:
+//    container = the container name, service = the Compose service name.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+// 3. Read stdout/stderr of every discovered container ...
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.local.receiver]
+}
+
+// 4. ... and push the lines to Loki. Service name, not localhost.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

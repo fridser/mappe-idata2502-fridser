@@ -8,4 +8,5 @@ WORKDIR /app
 COPY --from=build /install /usr/local 
 RUN pip uninstall -y pip
 COPY . .
-CMD ["python", "app.py"]
+ENV PYTHONUNBUFFERED=1
+CMD ["opentelemetry-instrument", "python", "app.py"]

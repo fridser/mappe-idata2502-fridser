@@ -1,0 +1,326 @@
+{
+  "uid": "logs",
+  "title": "2 \u00b7 Logs - what happened?",
+  "description": "Chapter 2: every container's stdout, in one place, as data. Click a line to expand it; \"Open trace\" jumps to chapter 3.",
+  "tags": [
+    "week8"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "0 \u00b7 Up",
+      "type": "link",
+      "url": "/d/up"
+    },
+    {
+      "title": "1 \u00b7 Metrics",
+      "type": "link",
+      "url": "/d/metrics"
+    },
+    {
+      "title": "2 \u00b7 Logs",
+      "type": "link",
+      "url": "/d/logs"
+    },
+    {
+      "title": "3 \u00b7 Traces",
+      "type": "link",
+      "url": "/d/traces"
+    },
+    {
+      "title": "Shop - all three",
+      "type": "link",
+      "url": "/d/shop"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Log lines per second, by service",
+      "description": "Every line Alloy shipped, counted - the raw volume.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (service) (rate({service=~\"app\"}[1m]))",
+          "legendFormat": "{{service}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Lines per second, by level",
+      "description": "`| json` turns each line into fields - level becomes something you can count.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (level) (rate({service=~\"app\"} | json | __error__=\"\" [1m]))",
+          "legendFormat": "{{level}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARNING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Requests per second - computed from the LOG LINES",
+      "description": "The same curve as the metrics dashboard, but counted from the JSON log lines. Two pillars, one truth.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (service) (rate({service=~\"app\"} | json | message=\"request handled\" [1m]))",
+          "legendFormat": "{{service}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "WARNING and ERROR lines, all three services - click a line, then \"Open trace\"",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Structured JSON, so `level` is a filter, not a grep. Each line carries request_id and trace_id.",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service=~\"app\"} | json | level=~\"WARNING|ERROR\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Everything from the shop, live (the three services)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "The unfiltered stream. Expand a line to see the fields; request_id ties the three services together.",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service=~\"app\"} | json"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}
