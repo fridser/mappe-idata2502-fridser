@@ -1,14 +1,87 @@
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318 # service name, never localhost
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none # metrics go the Prometheus way: pulled from /metrics
+  OTEL_LOGS_EXPORTER: none # logs go the Docker way: stdout, read by Alloy
+  OTEL_PYTHON_EXCLUDED_URLS: health,metrics # no span per scrape or health poll
+
 services:
   app:
     build: ./app 
     ports:
       - "5000:5000"
     environment:
-      - REDIS_HOST=redis
+      <<: *otel
+      OTEL_SERVICE_NAME: app
+      REDIS_HOST: redis
   redis:
     image: redis:7 
     volumes:
-      - redis-data:/data
+      - redis-data:/data 
+
+# ===== the stack =========================================================
+  # --- metrics ---
+  prometheus:
+    image: prom/prometheus:v3.5.5
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver # Tempo writes service-graph metrics here
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # --- logs ---
+  loki:
+    image: grafana/loki:3.5.3
+    command: -config.file=/etc/loki/local-config.yaml # the image's single-node default
+
+  # Alloy discovers every container through the Docker socket, reads its
+  # stdout and pushes the lines to Loki - the job Promtail used to do.
+  alloy:
+    image: grafana/alloy:v1.10.0
+    user: root # to read the Docker socket
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  # --- traces ---
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: -config.file=/etc/tempo.yaml
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+    # No volume: traces live in the container and vanish with `down`.
+    # Fine for a lab - a production Tempo gets a volume like Redis did in week 4.
+
+  # --- one UI ---
+  grafana:
+    image: grafana/grafana:12.4.9
+    ports:
+      - "3000:3000"
+    environment:
+      # Lab-only: anyone who can reach :3000 is admin, no login. That is
+      # exactly why this must never listen on a public IP - week 11.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/up.json
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      # Data sources and dashboards as files = configuration as code.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro # the five dashboards, one JSON each
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
 
 volumes:
-  redis-data: 
+  redis-data:

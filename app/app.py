@@ -8,14 +8,19 @@ import logging
 import os
 import pathlib
 import uuid
+import time
 
 import redis
 from flask import Flask, g, jsonify, request, redirect, url_for
+from opentelemetry import trace
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 # Configuration comes from environment variables (twelve-factor style).
 # Defaults let the app run standalone on your laptop without Redis.
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+SERVICE = os.environ.get("OTEL_SERVICE_NAME", "app")
+_QUIET_PATHS = ("/metrics", "/health")   # from observability.py:98
 
 
 def read_build():
@@ -36,6 +41,29 @@ BUILD = read_build()
 
 app = Flask(__name__)
 
+# --- metrics ---------------------------------------------------------------
+# A counter only goes up; Prometheus turns it into a rate later. The labels
+# are what let you ask "requests per second to /buy/<item> that returned 502".
+REQUESTS = Counter(
+    "http_requests_total",
+    "HTTP requests handled",
+    ["service", "method", "path", "status"],
+)
+# A histogram counts requests into duration buckets - that is how Grafana
+# can draw the 95th percentile later.
+LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "Time spent handling a request",
+    ["service", "method", "path"],
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+)
+
+
+def current_trace_id():
+    """The OpenTelemetry trace ID of the request being handled, or None."""
+    ctx = trace.get_current_span().get_span_context()
+    return format(ctx.trace_id, "032x") if ctx.is_valid else None
+
 
 class JsonFormatter(logging.Formatter):
     """Emit each log record as one JSON line (structured logging)."""
@@ -45,6 +73,7 @@ class JsonFormatter(logging.Formatter):
             "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
             "level": record.levelname,
             "message": record.getMessage(),
+            "trace_id": current_trace_id(),
         }
         # Request fields are attached via `extra=` in the log call below.
         for key in ("method", "path", "status", "request_id"):
@@ -80,16 +109,23 @@ def assign_request_id():
     # Reuse the caller's correlation ID if present, otherwise create one.
     # This lets you follow one request across several services.
     g.request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:8])
+    g.started = time.perf_counter()
 
 
 @app.after_request
 def log_request(response):
     response.headers["X-Request-ID"] = g.request_id
+    if request.path in _QUIET_PATHS:
+        return response
+    route = request.url_rule.rule if request.url_rule else "(unmatched)"
+    duration = time.perf_counter() - g.started
+    REQUESTS.labels(SERVICE, request.method, route, response.status_code).inc()
+    LATENCY.labels(SERVICE, request.method, route).observe(duration)
     logger.info(
         "request handled",
         extra={
             "method": request.method,
-            "path": request.path,
+            "path": request.path,   
             "status": response.status_code,
             "request_id": g.request_id,
         },
@@ -196,6 +232,10 @@ def happiness_buy():
 def health():
     return jsonify(status="ok", build=BUILD)
 
+
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
 
 if __name__ == "__main__":
