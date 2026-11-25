@@ -32,8 +32,22 @@
         state: started
         enabled: true
 
-    # TODO: put your compose.yaml on the server as
-    #   part of this playbook. Then the CD job only has to run
-    #   `docker compose pull && up -d` - and the file on the server can never
-    #   drift from the one in the repo.
+    - name: Put the deploy compose file on the VM # task 5, lined up with the others
+      ansible.builtin.copy:
+        src: ../deploy/compose.yaml
+        dest: /home/ubuntu/compose.yaml
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Put the stack config on the VM
+      ansible.builtin.copy:
+        src: "../{{ item }}"        # no trailing slash = copy the folder itself
+        dest: /home/ubuntu/
+        owner: ubuntu
+        group: ubuntu
+      loop:
+        - prometheus
+        - alloy
+        - tempo
+        - grafana
 
