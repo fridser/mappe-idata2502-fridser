@@ -69,7 +69,7 @@ jobs:
           head-ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
   deploy:
-    needs: build # wait for a green build - skip if red
+    needs: publish # runs after publish
     if: github.ref_name == 'main' # only main goes to production
     runs-on: ubuntu-24.04
     steps:
