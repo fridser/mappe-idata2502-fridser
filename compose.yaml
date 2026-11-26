@@ -8,7 +8,9 @@ x-otel: &otel
 
 services:
   app:
-    build: ./app 
+    image: ghcr.io/fridser/mappe-idata2502-fridser:latest
+    mem_limit: 128m
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
@@ -17,13 +19,17 @@ services:
       REDIS_HOST: redis
   redis:
     image: redis:7 
+    mem_limit: 64m
     volumes:
       - redis-data:/data 
+    restart: unless-stopped
 
 # ===== the stack =========================================================
   # --- metrics ---
   prometheus:
     image: prom/prometheus:v3.5.5
+    mem_limit: 300m
+    restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-remote-write-receiver # Tempo writes service-graph metrics here
@@ -35,12 +41,16 @@ services:
   # --- logs ---
   loki:
     image: grafana/loki:3.5.3
+    mem_limit: 256m
+    restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml # the image's single-node default
 
   # Alloy discovers every container through the Docker socket, reads its
   # stdout and pushes the lines to Loki - the job Promtail used to do.
   alloy:
     image: grafana/alloy:v1.10.0
+    mem_limit: 192m
+    restart: unless-stopped
     user: root # to read the Docker socket
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
     ports:
@@ -54,6 +64,8 @@ services:
   # --- traces ---
   tempo:
     image: grafana/tempo:2.8.1
+    mem_limit: 256m
+    restart: unless-stopped
     command: -config.file=/etc/tempo.yaml
     volumes:
       - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
@@ -63,6 +75,8 @@ services:
   # --- one UI ---
   grafana:
     image: grafana/grafana:12.4.9
+    mem_limit: 256m
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
