@@ -12,5 +12,7 @@ WORKDIR /app
 COPY --from=build /install /usr/local 
 RUN pip uninstall -y pip
 COPY . .
+RUN useradd --system --uid 10001 --no-create-home appuser
+USER appuser
 ENV PYTHONUNBUFFERED=1
 CMD ["opentelemetry-instrument", "python", "app.py"]
