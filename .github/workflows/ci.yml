@@ -78,11 +78,12 @@ jobs:
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }} # the workflow's own token - week 5
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN # hand these two to the script on the VM
+          envs: GHCR_USER,GHCR_TOKEN,GRAFANA_ADMIN_PASSWORD
           script: |
             set -e # stop at the first error - a failed pull must fail the job
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
