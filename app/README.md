@@ -1,25 +1,28 @@
 # app/
 
-A small Flask web app to build on. It is deliberately simple: the interesting
-work is the infrastructure you put around it, not the app itself.
+The "life shop": a small Flask webapp where you can buy love, happiness and
+success. The app is deliberately simple. The interesting part of the project
+is the infrastructure around it (see the [main README](../README.md)).
 
-**Stack:** Python + Flask, with optional Redis for a visit counter.
+**Stack:** Python 3.15 + Flask, Redis for the counters, Prometheus metrics and
+OpenTelemetry traces.
 
 ## Routes
 
-| Route           | What it does                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------- |
-| `/`             | Welcome page to a shop with a visit counter, the build stamp and links to the love,
-happiness and success pages. Without Redis it says so - the app still runs.                        |
-| `/love` | Shows a product page for the product love, a button to buy love, a counter that counts how many love has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                                               |
-| `/love/buy` | POST method, increments the 'love' counter in redis that keeps track of how much love has been bought                                                                                         | 
-| `/happiness` | Shows a product page for the product happiness, a button to buy happiness, a counter that counts how many happiness has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                         |
-| `/happiness/buy` | POST method, increments the 'happiness' counter in redis that keeps track of how much happiness has been bought                                                                          | 
-| `/success` | Shows a product page for the product success, a button to buy success, a counter that counts how many success has been bought and a return button to the main page. Without Redis it says so - the app still runs.                                                                                 |
-| `/success/buy` | POST method, increments the 'success' counter in redis that keeps track of how much success has been bought                                                                          | 
-| `/health`       | Returns `{"status": "ok", "build": "..."}` - a machine-readable endpoint for health checks.                |
+| Route             | Method | What it does                                                                 |
+| ----------------- | ------ | ---------------------------------------------------------------------------- |
+| `/`               | GET    | Shop front page with a visit counter, the build stamp and links to the three products. |
+| `/love`           | GET    | Product page for love (5c): a buy button, how many have been bought, and a back button. |
+| `/love/buy`       | POST   | Increments the `love` counter in Redis and redirects back to `/love`.        |
+| `/happiness`      | GET    | Product page for happiness (50 $).                                           |
+| `/happiness/buy`  | POST   | Increments the `happiness` counter and redirects back to `/happiness`.       |
+| `/success`        | GET    | Product page for success (1 000 000 $).                                      |
+| `/success/buy`    | POST   | Increments the `success` counter and redirects back to `/success`.           |
+| `/health`         | GET    | Returns `{"status": "ok", "build": "..."}` for health checks.                |
+| `/metrics`        | GET    | Prometheus metrics in the text exposition format.                            |
 
-
+Without Redis the pages say the counter is unavailable, and the app keeps
+running. The `/buy` routes only accept POST, so a GET returns 405.
 
 ## Run it
 
@@ -31,37 +34,82 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Then open <http://localhost:5000>. Redis is optional - without it the app
-still works, only the visit counter is unavailable.
+Then open <http://localhost:5000>. To run it with Redis and the whole
+monitoring stack, use `docker compose up -d` from the repository root.
+
+## Tests
+
+```bash
+pip install pytest
+pytest
+```
+
+The tests check that `/health` answers OK and that `/love/buy` rejects GET.
+CI runs them on every push.
+
+## Docker
+
+```bash
+docker build -t life-shop .
+docker run -p 5000:5000 life-shop
+```
+
+The [Dockerfile](Dockerfile) is a two-stage build. The final image is based on
+`python:3.15-slim`, installs Debian security updates, removes `pip`, and runs
+as a non-root system user (`appuser`, uid 10001). The app starts under
+`opentelemetry-instrument`, which adds tracing without code changes.
+
+CI publishes the image to `ghcr.io/fridser/mappe-idata2502-fridser`, tagged
+`latest` and with the short commit SHA.
 
 ## Configuration
 
-Configuration comes from environment variables, so the same image can run
+Configuration comes from environment variables, so the same image runs
 anywhere without being rebuilt.
 
-| Variable     | Default     | Purpose                                                     |
-| ------------ | ----------- | ------------------------------------------------------------- |
-| `REDIS_HOST` | `localhost` | Hostname of the Redis server.                                 |
-| `REDIS_PORT` | `6379`      | Redis port.                                                   |
+| Variable                       | Default     | Purpose                                              |
+| ------------------------------ | ----------- | ---------------------------------------------------- |
+| `REDIS_HOST`                   | `localhost` | Hostname of the Redis server.                        |
+| `REDIS_PORT`                   | `6379`      | Redis port.                                          |
+| `OTEL_SERVICE_NAME`            | `app`       | Service name on metrics and traces.                  |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | -           | Where traces are sent (`http://tempo:4318` in compose). |
+
+The compose files set the rest of the `OTEL_*` variables: traces go to Tempo
+over OTLP, and `/health` and `/metrics` are excluded from tracing.
+
+## Observability
+
+### Logs
+
+The app writes **structured JSON logs to stdout**, one line per request, with
+`timestamp`, `level`, `message`, `method`, `path`, `status`, `request_id` and
+`trace_id`. In the stack, Alloy reads them from Docker and ships them to Loki.
+
+`request_id` is taken from the `X-Request-ID` header when the caller sends
+one, otherwise generated, and is echoed back in the response headers. It works
+as a correlation ID across services. `trace_id` links a log line to its trace
+in Tempo.
+
+### Metrics
+
+`/metrics` exposes two metrics, which Prometheus scrapes:
+
+- `http_requests_total`: a counter labelled by `service`, `method`, `path` and `status`
+- `http_request_duration_seconds`: a latency histogram labelled by `service`, `method` and `path`
+
+`path` is the route pattern, not the raw URL, to keep the number of label
+values low.
+
+### Traces
+
+OpenTelemetry instruments Flask and Redis automatically, so each request
+becomes a trace with a span for every Redis call.
+
+Requests to `/health` and `/metrics` are not logged, counted or traced, so
+health checks and scrapes don't drown out real traffic.
 
 ## Build stamp
 
-The `BUILD` file holds a timestamp for when this app was last changed, and
-the app shows it on `/` and on `/health`. Compare it against the template to
-see whether you are running the current version.
-
-Once you start changing the app yourself, the stamp is yours to do what you
-like with - overwrite it during your own build, or drop it.
-
-## Logging
-
-The app writes **structured JSON logs to stdout** - one JSON line per request
-with `timestamp`, `level`, `method`, `path`, `status` and `request_id`.
-
-`request_id` is taken from the `X-Request-ID` header when the caller sends
-one, otherwise generated, and is echoed back in the response headers. That
-makes it a *correlation ID*: one request can be followed through the logs of
-several services.
-
-Logging to stdout rather than to a file is what makes `docker logs` and log
-collectors work.
+The [BUILD](BUILD) file holds a timestamp for when the app was last changed.
+The app shows it on `/` and on `/health`, so you can tell which version is
+running.
