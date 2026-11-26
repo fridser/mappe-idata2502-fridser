@@ -51,3 +51,27 @@
         - tempo
         - grafana
 
+    - name: Create a 2 GB swapfile
+      ansible.builtin.command: fallocate -l 2G /swapfile
+      args:
+        creates: /swapfile          # only runs if the file doesn't exist yet
+      register: swapfile
+
+    - name: Swapfile permissions
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Format swapfile
+      ansible.builtin.command: mkswap /swapfile
+      when: swapfile.changed
+
+    - name: Turn swap on
+      ansible.builtin.command: swapon /swapfile
+      when: swapfile.changed
+
+    - name: Keep swap after reboot
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+

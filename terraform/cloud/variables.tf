@@ -18,7 +18,7 @@ variable "image_name" {
 variable "flavor_name" {
   description = "Size of the VM"
   type        = string
-  default     = "gx3.1c1r"
+  default     = "gx3.1c2r"
 }
 
 variable "network_name" {
